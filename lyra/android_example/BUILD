@@ -6,6 +6,38 @@ package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
 
+
+cc_library(
+    name = "android_lyra_lib",
+    srcs = [
+        "android_lyra_lib.cc"
+    ],
+    hdrs = ["android_lyra_lib.h"],
+    # linkopts = [
+    #     "-landroid",
+    #     "-ldl",
+    #     "-llog",
+    # ],
+    deps = [
+        # "//lyra:lyra_benchmark_lib",
+        "//lyra:lyra_config",
+        "//lyra/cli_example:decoder_main_lib",
+        "//lyra/cli_example:encoder_main_lib",
+        "@com_google_absl//absl/random",
+    ],
+    linkopts = ["-shared"], 
+    copts = ["-fPIC"],
+    alwayslink = 1
+)
+
+cc_binary(
+    name = "libandroid_lyra.so",
+    deps = [":android_lyra_lib"],
+    linkshared = 1,
+    linkstatic = 1,
+    linkopts = ["-Wl,--no-as-needed"], 
+)
+
 # Android App rules
 cc_library(
     name = "jni_lyra_benchmark_lib",
