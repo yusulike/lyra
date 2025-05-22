@@ -1,3 +1,8 @@
+### To build standalone library
+bazel build -c opt lyra/android_example:libandroid_lyra.so --config=android_arm64
+### To avoid crash at samsung galaxy phones as workaround (after building)
+run ./patch_unwind_nop.sh then use libandroid_lyra.so.patch after renaming it to libandroid_lyra.so.
+
 # Lyra: a generative low bitrate speech codec
 
 ## What is Lyra?
