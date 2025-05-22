@@ -26,30 +26,44 @@
 namespace chromemedia {
 namespace codec {
 
+bool initialize_lyra(int sample_rate_hz, int num_channels,
+    int bitrate, bool enable_dtx,
+    const std::string& model_path) {
+    initialize_encoder(sample_rate_hz, num_channels, bitrate, enable_dtx, model_path);
+    initialize_decoder(sample_rate_hz, num_channels, model_path);
+    return true;
+}
+
+void release_lyra() {
+    release_encoder();
+    release_decoder();
+}
+
+void set_bitrate_lyra(int bitrate) {
+  set_bitrate_encoder(bitrate);
+}
+
 // Encodes a vector of wav_data into encoded_features.
 // Uses the quant files located under |model_path|.
-bool EncodeWav_LYRA(const std::vector<int16_t>& wav_data, int num_channels,
-               int sample_rate_hz, int bitrate, bool enable_preprocessing,
-               bool enable_dtx, const std::string& model_path,
+bool EncodeWav_LYRA(const std::vector<int16_t>& wav_data,
+               int sample_rate_hz, 
+               bool enable_preprocessing,
                std::vector<uint8_t>* encoded_features) {
 
-    return chromemedia::codec::EncodeWav(
-             wav_data, num_channels, sample_rate_hz, bitrate,
-             enable_preprocessing, enable_dtx, model_path, encoded_features);
+    return chromemedia::codec::encodeWav(
+             wav_data, 
+             sample_rate_hz,
+             enable_preprocessing, 
+             encoded_features);
 }
 
 bool DecodeFeatures_LYRA(const std::vector<uint8_t>& packet_stream, int bitrate,
-                    std::vector<int16_t>* decoded_audio, 
-                    const std::string& model_path){
-    std::unique_ptr<chromemedia::codec::LyraDecoder> decoder =
-         chromemedia::codec::LyraDecoder::Create(
-             16000, chromemedia::codec::kNumChannels, model_path);
-
+                    std::vector<int16_t>* decoded_audio){
     absl::BitGen gen;
 
-    return chromemedia::codec::DecodeFeatures(
+    return chromemedia::codec::decodeFeatures(
             packet_stream, chromemedia::codec::BitrateToPacketSize(bitrate),
-            /*randomize_num_samples_requested=*/false, gen, decoder.get(),
+            false, gen,
             nullptr, decoded_audio);
 }
 

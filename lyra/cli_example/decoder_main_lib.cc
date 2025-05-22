@@ -41,8 +41,29 @@
 #include "lyra/lyra_decoder.h"
 #include "lyra/wav_utils.h"
 
+#ifdef __ANDROID__
+
+#include <android/log.h>
+
+#define LOG_TAG "ENCODER_MAIN_LIB"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#endif
+
 namespace chromemedia {
 namespace codec {
+
+static std::unique_ptr<LyraDecoder> decoder_;
+
+void initialize_decoder(int sample_rate_hz, int num_channels,
+                                     const ghc::filesystem::path& model_path) {
+  decoder_ = LyraDecoder::Create(sample_rate_hz, num_channels, model_path);
+}
+
+void release_decoder() {
+  decoder_.reset();
+}
 
 std::string AbslUnparseFlag(chromemedia::codec::PacketLossPattern pattern) {
   std::ostringstream flag_text;
@@ -80,6 +101,68 @@ bool AbslParseFlag(absl::string_view text,
     }
     is_start = !is_start;
   }
+  return true;
+}
+
+bool decodeFeatures(const std::vector<uint8_t>& packet_stream, int packet_size,
+                    bool randomize_num_samples_requested, absl::BitGenRef gen,
+                    PacketLossModelInterface* packet_loss_model,
+                    std::vector<int16_t>* decoded_audio) {
+  if (decoder_ == nullptr) {
+    LOG(ERROR) << "Could not create lyra decoder.";
+    LOGE("Could not create lyra encoder.");
+    return false;
+  }
+  const int num_samples_per_packet =
+      GetNumSamplesPerHop(decoder_->sample_rate_hz());
+
+  const auto benchmark_start = absl::Now();
+  for (int encoded_index = 0; encoded_index < packet_stream.size();
+       encoded_index += packet_size) {
+    const absl::Span<const uint8_t> encoded_packet =
+        absl::MakeConstSpan(packet_stream.data() + encoded_index, packet_size);
+
+    const int frame_index = encoded_index / packet_size;
+    const float packet_start_seconds =
+        static_cast<float>(frame_index) / decoder_->frame_rate();
+    std::optional<std::vector<int16_t>> decoded;
+    if (packet_loss_model == nullptr || packet_loss_model->IsPacketReceived()) {
+      if (!decoder_->SetEncodedPacket(encoded_packet)) {
+        LOG(ERROR) << "Unable to set encoded packet starting at byte "
+                   << encoded_index << " at time " << packet_start_seconds
+                   << "s.";
+        return false;
+      }
+    } else {
+      VLOG(1) << "Decoding packet starting at " << packet_start_seconds
+              << "seconds in PLC mode.";
+    }
+    int samples_decoded_so_far = 0;
+    while (samples_decoded_so_far < num_samples_per_packet) {
+      int samples_to_request =
+          randomize_num_samples_requested
+              ? std::min(absl::Uniform<int>(absl::IntervalOpenClosed, gen, 0,
+                                            num_samples_per_packet),
+                         num_samples_per_packet - samples_decoded_so_far)
+              : num_samples_per_packet;
+      VLOG(1) << "Requesting " << samples_to_request
+              << " samples for decoding.";
+      decoded = decoder_->DecodeSamples(samples_to_request);
+      if (!decoded.has_value()) {
+        LOG(ERROR) << "Unable to decode features starting at byte "
+                   << encoded_index;
+        return false;
+      }
+      samples_decoded_so_far += decoded->size();
+      decoded_audio->insert(decoded_audio->end(), decoded.value().begin(),
+                            decoded.value().end());
+    }
+  }
+
+  const auto elapsed = absl::Now() - benchmark_start;
+  LOG(INFO) << "Elapsed seconds : " << absl::ToInt64Seconds(elapsed);
+  LOG(INFO) << "Samples per second : "
+            << decoded_audio->size() / absl::ToDoubleSeconds(elapsed);
   return true;
 }
 

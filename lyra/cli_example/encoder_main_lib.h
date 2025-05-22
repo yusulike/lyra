@@ -25,6 +25,18 @@
 namespace chromemedia {
 namespace codec {
 
+               
+void initialize_encoder(int sample_rate_hz, int num_channels, int bitrate,
+                                     bool enable_dtx,
+                                     const ghc::filesystem::path& model_path);
+void release_encoder();
+
+void set_bitrate_encoder(int bitrate);
+
+bool encodeWav(const std::vector<int16_t>& wav_data,
+               int sample_rate_hz, bool enable_preprocessing,
+               std::vector<uint8_t>* encoded_features);
+
 // Encodes a vector of wav_data into encoded_features.
 // Uses the quant files located under |model_path|.
 bool EncodeWav(const std::vector<int16_t>& wav_data, int num_channels,

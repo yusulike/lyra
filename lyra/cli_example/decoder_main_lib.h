@@ -54,6 +54,15 @@ bool DecodeFeatures(const std::vector<uint8_t>& packet_stream, int packet_size,
                     PacketLossModelInterface* packet_loss_model,
                     std::vector<int16_t>* decoded_audio);
 
+void initialize_decoder(int sample_rate_hz, int num_channels,
+                                     const ghc::filesystem::path& model_path);
+void release_decoder();
+
+bool decodeFeatures(const std::vector<uint8_t>& packet_stream, int packet_size,
+                    bool randomize_num_samples_requested, absl::BitGenRef gen,
+                    PacketLossModelInterface* packet_loss_model,
+                    std::vector<int16_t>* decoded_audio);
+
 // Decodes an encoded features file into a wav file.
 // Uses the model and quant files located under |model_path|.
 // Given the file /tmp/lyra/file1.lyra exists and is a valid encoded file. For:

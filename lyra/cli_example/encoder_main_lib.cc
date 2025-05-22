@@ -35,8 +35,98 @@
 #include "lyra/no_op_preprocessor.h"
 #include "lyra/wav_utils.h"
 
+#ifdef __ANDROID__
+
+#include <android/log.h>
+
+#define LOG_TAG "ENCODER_MAIN_LIB"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#endif
+
+
 namespace chromemedia {
 namespace codec {
+
+static std::unique_ptr<LyraEncoder> encoder_;
+
+void initialize_encoder(int sample_rate_hz, int num_channels, int bitrate,
+                                     bool enable_dtx,
+                                     const ghc::filesystem::path& model_path) {
+  encoder_ = LyraEncoder::Create(sample_rate_hz,
+                                  num_channels,
+                                  bitrate,
+                                  enable_dtx,
+                                  model_path);
+}
+
+void release_encoder() {
+  encoder_.reset();
+}
+
+void set_bitrate_encoder(int bitrate) {
+  if (encoder_ == nullptr) {
+    LOG(ERROR) << "Could not create lyra encoder.";
+    LOGE("Could not create lyra encoder.");
+    return;
+  }
+  if (!encoder_->set_bitrate(bitrate)) {
+    LOG(ERROR) << "Unable to set bitrate to " << bitrate;
+    LOGE("Unable to set bitrate to %d", bitrate);
+  }
+}
+
+bool encodeWav(const std::vector<int16_t>& wav_data,
+               int sample_rate_hz, bool enable_preprocessing,
+               std::vector<uint8_t>* encoded_features) {
+
+  if (encoder_ == nullptr) {
+    LOG(ERROR) << "Could not create lyra encoder.";
+    LOGE("Could not create lyra encoder.");
+    return false;
+  }
+
+  std::unique_ptr<PreprocessorInterface> preprocessor;
+  if (enable_preprocessing) {
+    preprocessor = std::make_unique<NoOpPreprocessor>();
+  }
+
+  const auto benchmark_start = absl::Now();
+
+  std::vector<int16_t> processed_data(wav_data);
+  if (enable_preprocessing) {
+    processed_data = preprocessor->Process(
+        absl::MakeConstSpan(wav_data.data(), wav_data.size()), sample_rate_hz);
+  }
+
+  const int num_samples_per_packet = sample_rate_hz / encoder_->frame_rate();
+  // Iterate over the wav data until the end of the vector.
+  for (int wav_iterator = 0;
+       wav_iterator + num_samples_per_packet <= processed_data.size();
+       wav_iterator += num_samples_per_packet) {
+    // Move audio samples from the large in memory wav file frame by frame to
+    // the encoder.
+    auto encoded = encoder_->Encode(absl::MakeConstSpan(
+        &processed_data.at(wav_iterator), num_samples_per_packet));
+    if (!encoded.has_value()) {
+      LOG(ERROR) << "Unable to encode features starting at samples at byte "
+                 << wav_iterator << ".";
+      return false;
+    }
+
+    // Append the encoded audio frames to the encoded_features accumulator
+    // vector.
+    encoded_features->insert(encoded_features->end(), encoded.value().begin(),
+                             encoded.value().end());
+  }
+  const auto elapsed = absl::Now() - benchmark_start;
+  LOG(INFO) << "Elapsed seconds : " << absl::ToInt64Seconds(elapsed);
+  LOG(INFO) << "Samples per second : "
+            << wav_data.size() / absl::ToDoubleSeconds(elapsed);
+
+  return true;
+}
 
 // Packets are appended to encoded_features. The oldest packet is encoded
 // starting at index 0.
@@ -51,6 +141,7 @@ bool EncodeWav(const std::vector<int16_t>& wav_data, int num_channels,
                                      /*model_path=*/model_path);
   if (encoder == nullptr) {
     LOG(ERROR) << "Could not create lyra encoder.";
+    LOGE("Could not create lyra encoder.");
     return false;
   }
 
@@ -114,6 +205,7 @@ bool EncodeFile(const ghc::filesystem::path& wav_path,
                  read_wav_result->sample_rate_hz, bitrate, enable_preprocessing,
                  enable_dtx, model_path, &encoded_features)) {
     LOG(ERROR) << "Unable to encode features for file " << wav_path;
+    LOGE("Unable to encode features for file %s", wav_path.string().c_str());
     return false;
   }
 
@@ -121,6 +213,7 @@ bool EncodeFile(const ghc::filesystem::path& wav_path,
                               std::ios_base::binary | std::ios_base::trunc);
   if (!output_stream.is_open()) {
     LOG(ERROR) << "Could not open output file " << output_path;
+    LOGE("Could not open output file %s", output_path.string().c_str());
     return false;
   }
   absl::string_view encoded_data(
