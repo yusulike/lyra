@@ -51,7 +51,6 @@
 
 #endif
 
-
 namespace chromemedia {
 namespace codec {
 
@@ -60,7 +59,6 @@ static std::unique_ptr<LyraEncoder> encoder_;
 void initialize_encoder(int sample_rate_hz, int num_channels, int bitrate,
                                      bool enable_dtx,
                                      const ghc::filesystem::path& model_path) {
-  LOGI(">>initialize_encoder called with sample_rate_hz: %d, num_channels: %d, "
   encoder_ = LyraEncoder::Create(sample_rate_hz,
                                   num_channels,
                                   bitrate,

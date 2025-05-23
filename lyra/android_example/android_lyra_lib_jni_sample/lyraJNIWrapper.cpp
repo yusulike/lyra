@@ -21,21 +21,14 @@ std::string jstringToString(JNIEnv* env, jstring jStr) {
     return result;
 }
 
-// Convert a jstring to a ghc::filesystem::path
-ghc::filesystem::path jstringToPath(JNIEnv* env, jstring jStr) {
-    return ghc::filesystem::path(jstringToString(env, jStr));
-}
-
 extern "C" {
 
 JNIEXPORT jbyteArray JNICALL
 Java_ai_onnxruntime_example_hilcodec_lyraWrapper_encodeWav(
-        JNIEnv *env, jobject /* thiz */, jshortArray jWavData, jint numChannels,
-        jint sampleRateHz, jint bitrate, jboolean enablePreprocessing,
-        jboolean enableDtx, jstring jModelPath) {
+        JNIEnv *env, jobject /* thiz */, jshortArray jWavData,
+        jint sampleRateHz, jboolean enablePreprocessing) {
 
-    LOGI("encodeWav called with numChannels=%d, sampleRateHz=%d, bitrate=%d", numChannels,
-         sampleRateHz, bitrate);
+    LOGI("encodeWav called with sampleRateHz=%d", sampleRateHz);
 
     // Convert Java short array to C++ vector
     jsize wavLength = env->GetArrayLength(jWavData);
@@ -43,28 +36,17 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_encodeWav(
     env->GetShortArrayRegion(jWavData, 0, wavLength, &wavData[0]);
     LOGI("Wav data length: %d", wavLength);
 
-    // Get model path
-    ghc::filesystem::path modelPath = jstringToPath(env, jModelPath);
-    LOGI("Model path: %s", modelPath.string().c_str());
-
     // Create output vector for encoded features
     std::vector<uint8_t> encodedFeatures;
 
-    // Call the C++ function
-    bool success = EncodeWav_LYRA(
-            wavData,
-            numChannels,
-            sampleRateHz,
-            bitrate,
-            enablePreprocessing,
-            enableDtx,
-            modelPath.string(),
-            &encodedFeatures
-    );
+    // Call the encoding function
+    bool success = lyra_encode_wav(wavData, sampleRateHz,
+                                 static_cast<bool>(enablePreprocessing),
+                                 &encodedFeatures);
 
     if (!success) {
         LOGE("Encoding failed");
-        return nullptr; // Return null if encoding fails
+        return nullptr;
     }
 
     LOGI("Encoding successful, encoded features size: %zu", encodedFeatures.size());
@@ -78,15 +60,14 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_encodeWav(
     }
 
     env->SetByteArrayRegion(jEncodedArray, 0, encodedSize,
-                            reinterpret_cast<jbyte *>(encodedFeatures.data()));
+                           reinterpret_cast<jbyte*>(encodedFeatures.data()));
 
     return jEncodedArray;
 }
 
 JNIEXPORT jshortArray JNICALL
 Java_ai_onnxruntime_example_hilcodec_lyraWrapper_decodeFeature(
-        JNIEnv *env, jobject /* thiz */, jbyteArray jEncodedFeatures, jint bitrate,
-        jstring jModelPath) {
+        JNIEnv *env, jobject /* thiz */, jbyteArray jEncodedFeatures, jint bitrate) {
 
     LOGI("decodeFeatures called with bitrate=%d", bitrate);
 
@@ -94,35 +75,25 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_decodeFeature(
     jsize encodedLength = env->GetArrayLength(jEncodedFeatures);
     std::vector<uint8_t> encodedFeatures(encodedLength);
     env->GetByteArrayRegion(jEncodedFeatures, 0, encodedLength,
-                            (jbyte *) (&encodedFeatures[0])
-    );
+                           reinterpret_cast<jbyte*>(&encodedFeatures[0]));
     LOGI("Encoded features size: %d", encodedLength);
-
-    // Get model path
-    ghc::filesystem::path modelPath = jstringToPath(env, jModelPath);
-    LOGI("Model path: %s", modelPath.string().c_str());
 
     // Create output vector for decoded audio
     std::vector<int16_t> decodedAudio;
 
-    // Call the C++ function
-    bool success = DecodeFeatures_LYRA(
-            encodedFeatures,
-            bitrate,
-            &decodedAudio,
-            modelPath.string()
-    );
+    // Call the decoding function
+    bool success = lyra_decode_features(encodedFeatures, bitrate, &decodedAudio);
 
     if (!success) {
         LOGE("Decoding failed");
-        return nullptr; // Return null if decoding fails
+        return nullptr;
     }
 
     LOGI("Decoding successful, decoded audio size: %zu", decodedAudio.size());
 
     jshortArray jDecodedArray = env->NewShortArray(decodedAudio.size());
     env->SetShortArrayRegion(jDecodedArray, 0, decodedAudio.size(),
-                             &decodedAudio[0]);
+                            &decodedAudio[0]);
     return jDecodedArray;
 }
 
@@ -134,23 +105,22 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_encodeFile(
 
     LOGI("encodeFile called with bitrate=%d", bitrate);
 
-    // Convert Java strings to filesystem paths
-    ghc::filesystem::path wavPath = jstringToPath(env, jWavPath);
-    ghc::filesystem::path outputPath = jstringToPath(env, jOutputPath);
-    ghc::filesystem::path modelPath = jstringToPath(env, jModelPath);
+    std::string wavPath = jstringToString(env, jWavPath);
+    std::string outputPath = jstringToString(env, jOutputPath);
+    std::string modelPath = jstringToString(env, jModelPath);
 
-    LOGI("Wav path: %s", wavPath.string().c_str());
-    LOGI("Output path: %s", outputPath.string().c_str());
-    LOGI("Model path: %s", modelPath.string().c_str());
+    LOGI("Wav path: %s", wavPath.c_str());
+    LOGI("Output path: %s", outputPath.c_str());
+    LOGI("Model path: %s", modelPath.c_str());
 
     // Call the C++ function
-    bool success = EncodeFile_LYRA(
-            wavPath.string(),
-            outputPath.string(),
+    bool success = lyra_encode_file(
+            wavPath,
+            outputPath,
             static_cast<int>(bitrate),
             static_cast<bool>(enablePreprocessing),
             static_cast<bool>(enableDtx),
-            modelPath.string()
+            modelPath
     );
 
     if (success) {
@@ -169,22 +139,21 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_decodeFile(
 
     LOGI("decodeFile called with sampleRateHz=%d, bitrate=%d", sampleRateHz, bitrate);
 
-    // Convert Java strings to filesystem paths
-    ghc::filesystem::path encodedPath = jstringToPath(env, jEncodedPath);
-    ghc::filesystem::path outputPath = jstringToPath(env, jOutputPath);
-    ghc::filesystem::path modelPath = jstringToPath(env, jModelPath);
+    std::string encodedPath = jstringToString(env, jEncodedPath);
+    std::string outputPath = jstringToString(env, jOutputPath);
+    std::string modelPath = jstringToString(env, jModelPath);
 
-    LOGI("Encoded path: %s", encodedPath.string().c_str());
-    LOGI("Output path: %s", outputPath.string().c_str());
-    LOGI("Model path: %s", modelPath.string().c_str());
+    LOGI("Encoded path: %s", encodedPath.c_str());
+    LOGI("Output path: %s", outputPath.c_str());
+    LOGI("Model path: %s", modelPath.c_str());
 
     // Call the C++ function to decode the file
-    bool success = DecodeFile_LYRA(
-            encodedPath.string(),
-            outputPath.string(),
+    bool success = lyra_decode_file(
+            encodedPath,
+            outputPath,
             sampleRateHz,
             bitrate,
-            modelPath.string()
+            modelPath
     );
 
     if (success) {
@@ -194,6 +163,50 @@ Java_ai_onnxruntime_example_hilcodec_lyraWrapper_decodeFile(
     }
 
     return static_cast<jboolean>(success);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_ai_onnxruntime_example_hilcodec_lyraWrapper_initializeEncoder(
+        JNIEnv *env, jobject /* thiz */, jint sampleRateHz, jint numChannels,
+        jint bitrate, jboolean enableDtx, jstring jModelPath) {
+    
+    LOGI("Initializing encoder with sampleRate=%d, channels=%d, bitrate=%d", 
+         sampleRateHz, numChannels, bitrate);
+    
+    std::string modelPath = jstringToString(env, jModelPath);
+    bool success = lyra_encoder_initialize(sampleRateHz, numChannels, bitrate,
+                                         static_cast<bool>(enableDtx), modelPath);
+    
+    if (!success) {
+        LOGE("Failed to initialize encoder");
+    }
+    
+    return static_cast<jboolean>(success);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_ai_onnxruntime_example_hilcodec_lyraWrapper_initializeDecoder(
+        JNIEnv *env, jobject /* thiz */, jint sampleRateHz, jint numChannels,
+        jstring jModelPath) {
+    
+    LOGI("Initializing decoder with sampleRate=%d, channels=%d", 
+         sampleRateHz, numChannels);
+    
+    std::string modelPath = jstringToString(env, jModelPath);
+    bool success = lyra_decoder_initialize(sampleRateHz, numChannels, modelPath);
+    
+    if (!success) {
+        LOGE("Failed to initialize decoder");
+    }
+    
+    return static_cast<jboolean>(success);
+}
+
+JNIEXPORT void JNICALL
+Java_ai_onnxruntime_example_hilcodec_lyraWrapper_setBitrate(
+        JNIEnv * /* env */, jobject /* thiz */, jint bitrate) {
+    LOGI("Setting bitrate to %d", bitrate);
+    lyra_set_bitrate(bitrate);
 }
 
 // You might want to add a method to check if the library is properly loaded
