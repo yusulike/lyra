@@ -13,11 +13,11 @@ ADDR_DEC=$((16#$ADDR_HEX))
 # 2. 해당 함수에서 _Unwind_Backtrace를 호출하는 명령어 추출
 LINE_HEX=$($NDK_OBJ -d -C "$LIB" \
   --start-address=0x$ADDR_HEX --stop-address=$((ADDR_DEC+0x30)) \
-  | grep -B1 "<_Unwind_Backtrace>" | head -1 | awk '{print $1}' | sed 's/://')
+  | grep _Unwind_Backtrace | head -1 | awk '{print $1}' | sed 's/://')
 
 
 # 3. 오프셋 계산
-OFFSET=$((16#$LINE_HEX + 4))
+OFFSET=$((16#$LINE_HEX))
 
 # 4. 출력 확인
 echo "📍 Found _Unwind_Backtrace call at offset 0x$LINE_HEX"

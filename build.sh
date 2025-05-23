@@ -1,0 +1,1 @@
+ bazel build -c opt lyra/android_example:libandroid_lyra.so --config=android_arm64

@@ -45,9 +45,15 @@
 
 #include <android/log.h>
 
-#define LOG_TAG "ENCODER_MAIN_LIB"
+#define LOG_TAG "DECODER_MAIN_LIB"
+
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#else
+
+#define LOGI(...)
+#define LOGE(...)
 
 #endif
 

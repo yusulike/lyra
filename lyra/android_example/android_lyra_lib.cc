@@ -23,23 +23,54 @@
 #include "lyra/lyra_benchmark_lib.h"
 #include "lyra/lyra_config.h"
 
+#ifdef __ANDROID__
+
+#include <android/log.h>
+
+#define LOG_TAG "ENCODER_MAIN_LIB"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#else
+
+#define LOGI(...)
+#define LOGE(...)
+
+#endif
+
+
 namespace chromemedia {
 namespace codec {
 
-bool initialize_lyra(int sample_rate_hz, int num_channels,
-    int bitrate, bool enable_dtx,
-    const std::string& model_path) {
+
+bool Initialize_Encoder_LYRA(int sample_rate_hz, int num_channels, int bitrate,
+                                      bool enable_dtx,
+                                      const std::string& model_path) {
+    LOGI("initialize_encoder called with sample_rate_hz: %d, num_channels: %d, bitrate: %d, enable_dtx: %d, model_path: %s",
+         sample_rate_hz, num_channels, bitrate, enable_dtx, model_path.c_str());
     initialize_encoder(sample_rate_hz, num_channels, bitrate, enable_dtx, model_path);
+    return true;
+}
+
+void Release_Encoder_LYRA() {
+    LOGI("release_encoder called");
+    release_encoder();
+}
+
+bool Initialize_Decoder_LYRA(int sample_rate_hz, int num_channels,
+                                      const std::string& model_path) {
+    LOGI("initialize_decoder called with sample_rate_hz: %d, num_channels: %d, model_path: %s",
+         sample_rate_hz, num_channels, model_path.c_str());
     initialize_decoder(sample_rate_hz, num_channels, model_path);
     return true;
 }
 
-void release_lyra() {
-    release_encoder();
+void Release_Decoder_LYRA() {
+    LOGI("release_decoder called");
     release_decoder();
 }
 
-void set_bitrate_lyra(int bitrate) {
+void Set_Bitrate_LYRA(int bitrate) {
   set_bitrate_encoder(bitrate);
 }
 

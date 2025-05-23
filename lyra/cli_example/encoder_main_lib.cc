@@ -40,8 +40,14 @@
 #include <android/log.h>
 
 #define LOG_TAG "ENCODER_MAIN_LIB"
+
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#else
+
+#define LOGI(...)
+#define LOGE(...)
 
 #endif
 
@@ -54,11 +60,16 @@ static std::unique_ptr<LyraEncoder> encoder_;
 void initialize_encoder(int sample_rate_hz, int num_channels, int bitrate,
                                      bool enable_dtx,
                                      const ghc::filesystem::path& model_path) {
+  LOGI(">>initialize_encoder called with sample_rate_hz: %d, num_channels: %d, "
   encoder_ = LyraEncoder::Create(sample_rate_hz,
                                   num_channels,
                                   bitrate,
                                   enable_dtx,
                                   model_path);
+
+  LOGI("<<Encoder initialized with sample rate: %d, num channels: %d, "
+       "bitrate: %d, enable_dtx: %d, encoder: %p",
+       sample_rate_hz, num_channels, bitrate, enable_dtx, encoder_.get());
 }
 
 void release_encoder() {
@@ -66,6 +77,8 @@ void release_encoder() {
 }
 
 void set_bitrate_encoder(int bitrate) {
+  LOGI("set_bitrate_encoder called with bitrate: %d, endcoder: %p", bitrate, encoder_.get());
+
   if (encoder_ == nullptr) {
     LOG(ERROR) << "Could not create lyra encoder.";
     LOGE("Could not create lyra encoder.");

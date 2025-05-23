@@ -10,12 +10,17 @@ namespace codec {
 // Encodes a vector of wav_data into encoded_features.
 // Uses the quant files located under |model_path|.
 
-bool initialize_lyra(int sample_rate_hz, int num_channels,
-    int bitrate, bool enable_dtx,
-    const std::string& model_path);
-void release_lyra();
+bool Initialize_Encoder_LYRA(int sample_rate_hz, int num_channels, int bitrate,
+                                     bool enable_dtx,
+                                     const std::string& model_path);
+void Release_Encoder_LYRA();
 
-void set_bitrate_lyra(int bitrate);
+bool Initialize_Decoder_LYRA(int sample_rate_hz, int num_channels,
+                                     const std::string& model_path);
+
+void Release_Decoder_LYRA();
+
+void Set_Bitrate_LYRA(int bitrate);
 
 bool EncodeWav_LYRA(const std::vector<int16_t>& wav_data,
                int sample_rate_hz, 
